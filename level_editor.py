@@ -14,28 +14,56 @@ bl_info = {
     "category": "Object"
 }
 
-# Blenderに登録するクラスリスト
-classes = (
-    TOPBAR_MT_my_menu,
-)
+# オペレータ 頂点を伸ばす
+class MYADDON_OT_stretch_vertex(bpy.types.Operator):
+    bl_idname = "myaddon.myaddon_ot_stretch_vertex"
+    bl_label = "頂点を伸ばす"
+    bl_description = "頂点座標を引っ張って伸ばします"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    def execute(self, context):
+        bpy.data.objects["Cube"].data.vertices[0].co.x += 1.0
+        print("頂点を伸ばしました。")
+        return {'FINISHED'}
+
+# オペレータ ICO球生成
+class MYADDON_OT_create_ico_sphere(bpy.types.Operator):
+    bl_idname = "myaddon.myaddon_ot_create_object"
+    bl_label = "ICO球生成"
+    bl_description = "ICO球を生成します"
+    bl_options = {'REGISTER', 'UNDO'}
+
+    # メニューを実行したときに呼ばれる関数
+    def execute(self, context):
+        bpy.ops.mesh.primitive_ico_sphere_add()
+        print("ICO球を生成しました。")
+
+        return {'FINISHED'}
 
 # トップバーの拡張メニュークラス
 class TOPBAR_MT_my_menu(bpy.types.Menu):
-    #Blenderがクラスを識別する為の固有の文字列
-    bl_idname = "TOPBAR_MT_my_menu"
-    #メニューのラベルとして表示される文字列
+    bl_idname = "MYADDON_MT_my_menu" 
     bl_label = "MyMenu"
-    #著者表示用の文字列
     bl_description = "拡張メニュー by " + bl_info["author"]
 
     # サブメニューの描画
     def draw(self, context):
-        #トップバーの「エディターメニュー」に項目（オペレータ）を追加
-        self.layout.operator("wm.url_open_preset", text="Manual", icon='HELP')
+        self.layout.operator(MYADDON_OT_stretch_vertex.bl_idname,
+                             text=MYADDON_OT_stretch_vertex.bl_label)
+        self.layout.operator(MYADDON_OT_create_ico_sphere.bl_idname,
+                             text=MYADDON_OT_create_ico_sphere.bl_label)
 
-# 既存のメニューにサブメニューを追加する関数
+# Blenderに登録するクラスリスト
+classes = (
+    TOPBAR_MT_my_menu,
+    MYADDON_OT_stretch_vertex,
+    MYADDON_OT_create_ico_sphere,
+)
+
+
+
+# 既存のメニューにサブメニューを追加
 def submenu(self, context):
-    # ID指定でサブメニューを追加
     self.layout.menu(TOPBAR_MT_my_menu.bl_idname)
 
 
@@ -43,19 +71,14 @@ def submenu(self, context):
 def register():
     for cls in classes:
         bpy.utils.register_class(cls)
-        
-    # トップバーのメニューに、作成したサブメニューを追加
     bpy.types.TOPBAR_MT_editor_menus.append(submenu)
     print("レベルエディタが有効化されました。")
 
 #Add-On無効化時コールバック
 def unregister():
-    # トップバーのメニューから、サブメニューを削除
     bpy.types.TOPBAR_MT_editor_menus.remove(submenu)
-    
     for cls in reversed(classes):
         bpy.utils.unregister_class(cls)
-        
     print("レベルエディタが無効化されました。")
 
 if __name__ == "__main__":
