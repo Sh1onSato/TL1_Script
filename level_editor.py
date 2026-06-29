@@ -42,7 +42,7 @@ class MYADDON_OT_create_ico_sphere(bpy.types.Operator):
         return {'FINISHED'}
 
 
-# オペレータ：シーン出力（★再帰ツリー・インデント対応の完全エクスポート版！）
+# オペレータ：シーン出力
 class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelper):
     bl_idname = "myaddon.myaddon_ot_export_scene"
     bl_label = "シーン出力"
@@ -58,35 +58,37 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
 
 
     def parse_scene_recursive(self, file, object, level):
-        
-        # 階層の深さ（level）の数だけ、文字列としてのタブ文字（\t）を作成
         indent = ''
         for i in range(level):
             indent += "\t"
             
-        # オブジェクト種別と名前の書き込み（先頭にインデントを合体）
-        self.write_and_print(file, indent + object.type + " - " + object.name)
+        # オブジェクト種別を表示
+        self.write_and_print(file, indent + object.type)
         
         # ローカルトランスフォーム行列から平行移動、回転、スケーリングを抽出
         trans, rot, scale = object.matrix_local.decompose()
         
-        # 回転を Quaternion から Euler に変換
         rot = rot.to_euler()
-        
-        # ラジアンから度数法に変換
         rot.x = math.degrees(rot.x)
         rot.y = math.degrees(rot.y)
         rot.z = math.degrees(rot.z)
         
-        # トランスフォーム情報をファイルとコンソールに出力（先頭にインデントを合体）
-        self.write_and_print(file, indent + "Trans(%f,%f,%f)" % (trans.x, trans.y, trans.z) )
-        self.write_and_print(file, indent + "Rot(%f,%f,%f)" % (rot.x, rot.y, rot.z) )
-        self.write_and_print(file, indent + "Scale(%f,%f,%f)" % (scale.x, scale.y, scale.z) )
-        self.write_and_print(file, '') # オブジェクト間の区切り空行
+        # トランスフォーム情報を表示（T, R, S のシンプルな形式へ）
+        self.write_and_print(file, indent + "T %f %f %f" % (trans.x, trans.y, trans.z) )
+        self.write_and_print(file, indent + "R %f %f %f" % (rot.x, rot.y, rot.z) )
+        self.write_and_print(file, indent + "S %f %f %f" % (scale.x, scale.y, scale.z) )
+        
+        # カスタムプロパティ 'file_name' があれば出力
+        if "file_name" in object:
+            self.write_and_print(file, indent + "N %s" % object["file_name"])
+            
+        # 終端表示と区切り空行
+        self.write_and_print(file, indent + 'END')
+        self.write_and_print(file, '')
 
+        # 子ノードへ進む（深さが1上がる）
         for child in object.children:
             self.parse_scene_recursive(file, child, level + 1)
-
 
     def export(self):
         """ファイルに出力"""
@@ -115,6 +117,19 @@ class MYADDON_OT_export_scene(bpy.types.Operator, bpy_extras.io_utils.ExportHelp
         return {'FINISHED'}
 
 
+# オペレータ：カスタムプロパティ['file_name']追加
+class MYADDON_OT_add_filename(bpy.types.Operator):
+    """['file_name']カスタムプロパティを追加します"""
+    bl_idname = "myaddon.myaddon_ot_add_filename"
+    bl_label = "FileName 追加"
+    bl_description = "['file_name']カスタムプロパティを追加します"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):
+        # ['file_name']カスタムプロパティを追加
+        context.object["file_name"] = ""
+        return {"FINISHED"}
+
 # トップバーの拡張メニュークラス
 class TOPBAR_MT_my_menu(bpy.types.Menu):
     bl_idname = "MYADDON_MT_my_menu"
@@ -128,17 +143,42 @@ class TOPBAR_MT_my_menu(bpy.types.Menu):
                              text=MYADDON_OT_create_ico_sphere.bl_label)
         self.layout.operator(MYADDON_OT_export_scene.bl_idname,
                              text=MYADDON_OT_export_scene.bl_label)
-
-
+        
 # 既存のメニューにサブメニューを追加する関数
 def submenu(self, context):
     self.layout.menu(TOPBAR_MT_my_menu.bl_idname)
 
+# パネルクラス
+class OBJECT_PT_file_name(bpy.types.Panel):
+    """オブジェクトのファイルネームパネル"""
+    bl_idname = "OBJECT_PT_file_name"
+    bl_label = "FileName"
+    bl_space_type = "PROPERTIES"
+    bl_region_type = "WINDOW"
+    bl_context = "object"
+
+    # サブメニューの描画
+    def draw(self, context):
+        # パネルに項目を追加
+        self.layout.operator(MYADDON_OT_stretch_vertex.bl_idname, text=MYADDON_OT_stretch_vertex.bl_label)
+        self.layout.operator(MYADDON_OT_create_ico_sphere.bl_idname, text=MYADDON_OT_create_ico_sphere.bl_label)
+        self.layout.operator(MYADDON_OT_export_scene.bl_idname, text=MYADDON_OT_export_scene.bl_label)
+        
+        self.layout.separator()
+        
+        if "file_name" in context.object:
+            # 既にプロパティがあれば、直接入力できるテキストボックスを表示
+            self.layout.prop(context.object, '["file_name"]', text=self.bl_label)
+        else:
+            # プロパティがなければ、追加するためのボタンを表示
+            self.layout.operator(MYADDON_OT_add_filename.bl_idname)
 classes = (
     TOPBAR_MT_my_menu,
     MYADDON_OT_stretch_vertex,
     MYADDON_OT_create_ico_sphere,
     MYADDON_OT_export_scene,
+    MYADDON_OT_add_filename,
+    OBJECT_PT_file_name,
 )
 
 def register():
